@@ -3,8 +3,10 @@ import { ApiError} from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import {uploadOncloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken"
+import mongoose from "mongoose";
 
-const generateAccessTokenAndRefreshTokens = async(userId) => {
+const generateAccessAndRefereshTokens = async(userId) => {
   try{
     const user = await User.findById(userId)
     const accessToken = user.generateAccessToken()
@@ -14,7 +16,9 @@ const generateAccessTokenAndRefreshTokens = async(userId) => {
     await user.save({validateBeforeSave: false})
 
     return {accessToken, refreshToken}
+
   } catch (error){
+    console.error("Original error details:", error);
     throw new ApiError(500, "Something went wrong while generating referesh and access token")
   }
 }
@@ -102,11 +106,15 @@ const loginUser = asyncHandler(async(req, res) => {
 
   const {email, username, password} = req.body
 
-  if (!username || !email){
+  if (!(username || email)){
     throw new ApiError(400, "username or email is required")
   }
+  // Alternate for above code
+  // if (!username && !email){
+  //   throw new ApiError(400, "username or email is required")
+  // }
 
-  const user =await User.findOne({
+  const user = await User.findOne({
     $or:[{username}, {email}]
   })
 
@@ -119,7 +127,7 @@ const loginUser = asyncHandler(async(req, res) => {
     throw new ApiError(401, "Invalid user credentials")
   }
 
-  const {accessToken, refreshToken } = await generateAccessTokenAndRefreshTokens(user._id)
+  const {accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id)
 
   const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
