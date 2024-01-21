@@ -257,7 +257,7 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
 const getCurrentUser = asyncHandler(async(req, res) => {
   return res
   .status(200)
-  .json(200,req.user, "current user fetched successfully")
+  .json(new ApiResponse(200,req.user, "current user fetched successfully"))
 })
 
 const updateAccountDetails = asyncHandler(async(req, res) => {
@@ -291,7 +291,7 @@ const updateUserAvatar = asyncHandler(async(req,res) =>
   if (!avatarLocalPath){
     throw new ApiError(400, "Avatar file is missing")
   }
-
+  // Todo delete old image
   const avatar = await uploadOncloudinary(avatarLocalPath)
 
   if(!avatar.url){
@@ -346,6 +346,67 @@ const updateUserCoverImage = asyncHandler(async(req,res) =>
  )
 })
 
+const getUserChannelProfile = asyncHandler(async(req, res) => {
+  const {username} = req.params
+
+  if (!username?.trim()){
+    throw new ApiError(400, "username is missing")
+  }
+
+  const channel = User.aggregate([
+    {
+      $match:{
+        username: username?.toLowerCase()
+      }
+    },
+    {
+      $lookup:{
+        from: "subscription",
+        localField:"_id",
+        foreignField:"channel",
+        as:"subscribers" 
+      }
+    },
+    {
+      $lookup:{
+        from: "subscription",
+        localField:"_id",
+        foreignField: "subscriber",
+        as: "subscribedTo"
+      } 
+    },
+    {
+      $addFields:{
+        subscribersCount:{
+          $size: "$subscribers"
+        },
+        channelsSubscribedToCount:{
+          $size: "$subscribedTo"
+        },
+        isSubscribed: {
+          $cond:{
+            if:{$in: [req.user?._id, "$subscribers.subscriber"]},
+            then: true,
+            else: false
+          }
+        }
+      }
+    },
+    {
+      $project:{
+        fullname:1,
+        username:1,
+        subscribersCount:1,
+        channelsSubscribedToCount:1,
+        isSubscribed:1,
+        avatar:1,
+        coverImage:1,
+        email:1,
+      }
+    }
+  ])
+})
+
 export {
   registerUser,
   loginUser,
@@ -355,5 +416,6 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
-  updateUserCoverImage
+  updateUserCoverImage,
+  getUserChannelProfile
 }
